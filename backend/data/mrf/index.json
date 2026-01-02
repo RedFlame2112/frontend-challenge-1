@@ -1,0 +1,20 @@
+{
+  "customers": {
+    "ACM001": {
+      "id": "ACM001",
+      "key": "acm001",
+      "name": "Acme Corporation",
+      "files": [
+        {
+          "customerId": "ACM001",
+          "customerKey": "acm001",
+          "customerName": "Acme Corporation",
+          "fileName": "acme-corporation-acm001-2026-01-02.json",
+          "createdAt": "2026-01-02T17:37:07.392Z",
+          "claimCount": 64,
+          "size": 46010
+        }
+      ]
+    }
+  }
+}
