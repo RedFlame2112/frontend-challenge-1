@@ -1,5 +1,37 @@
 {
   "customers": {
+    "GLE003": {
+      "id": "GLE003",
+      "key": "gle003",
+      "name": "Global Enterprises",
+      "files": [
+        {
+          "customerId": "GLE003",
+          "customerKey": "gle003",
+          "customerName": "Global Enterprises",
+          "fileName": "global-enterprises-gle003-2026-01-03.json",
+          "createdAt": "2026-01-03T00:09:32.557Z",
+          "claimCount": 134,
+          "size": 100803
+        }
+      ]
+    },
+    "TSI002": {
+      "id": "TSI002",
+      "key": "tsi002",
+      "name": "TechSolutions Inc.",
+      "files": [
+        {
+          "customerId": "TSI002",
+          "customerKey": "tsi002",
+          "customerName": "TechSolutions Inc.",
+          "fileName": "techsolutions-inc-tsi002-2026-01-03.json",
+          "createdAt": "2026-01-03T00:09:32.560Z",
+          "claimCount": 112,
+          "size": 83507
+        }
+      ]
+    },
     "ACM001": {
       "id": "ACM001",
       "key": "acm001",
@@ -9,10 +41,42 @@
           "customerId": "ACM001",
           "customerKey": "acm001",
           "customerName": "Acme Corporation",
-          "fileName": "acme-corporation-acm001-2026-01-02.json",
-          "createdAt": "2026-01-02T17:37:07.392Z",
-          "claimCount": 64,
-          "size": 46010
+          "fileName": "acme-corporation-acm001-2026-01-03.json",
+          "createdAt": "2026-01-03T00:09:32.569Z",
+          "claimCount": 124,
+          "size": 92406
+        }
+      ]
+    },
+    "EDA005": {
+      "id": "EDA005",
+      "key": "eda005",
+      "name": "Education Alliance",
+      "files": [
+        {
+          "customerId": "EDA005",
+          "customerKey": "eda005",
+          "customerName": "Education Alliance",
+          "fileName": "education-alliance-eda005-2026-01-03.json",
+          "createdAt": "2026-01-03T00:09:32.573Z",
+          "claimCount": 139,
+          "size": 103656
+        }
+      ]
+    },
+    "CGV004": {
+      "id": "CGV004",
+      "key": "cgv004",
+      "name": "City Government",
+      "files": [
+        {
+          "customerId": "CGV004",
+          "customerKey": "cgv004",
+          "customerName": "City Government",
+          "fileName": "city-government-cgv004-2026-01-03.json",
+          "createdAt": "2026-01-03T00:09:32.578Z",
+          "claimCount": 130,
+          "size": 96855
         }
       ]
     }

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { observer } from "mobx-react-lite";
 import { AgGridReact } from "ag-grid-react";
 import type { CellValueChangedEvent, ColDef, ColGroupDef, RowClassRules } from "ag-grid-community";
@@ -8,6 +8,7 @@ import {
   Button,
   Card,
   Group,
+  Modal,
   MultiSelect,
   Select,
   SegmentedControl,
@@ -24,6 +25,42 @@ import StatBadge from "~/components/StatBadge";
 import { formatCurrency } from "~/utils/formatters";
 
 type SelectOption = { value: string; label: string };
+type EditableField =
+  | "claimStatus"
+  | "claimType"
+  | "procedureCode"
+  | "billed"
+  | "allowed"
+  | "paid"
+  | "paymentStatusDate"
+  | "serviceDate"
+  | "groupName"
+  | "groupId"
+  | "providerName"
+  | "providerId"
+  | "placeOfService"
+  | "planName"
+  | "planId"
+  | "paymentStatus";
+
+const EDITABLE_FIELDS: { field: EditableField; label: string; inputType?: "number" | "date" }[] = [
+  { field: "claimStatus", label: "Claim status" },
+  { field: "claimType", label: "Claim type" },
+  { field: "procedureCode", label: "Procedure code" },
+  { field: "billed", label: "Billed", inputType: "number" },
+  { field: "allowed", label: "Allowed", inputType: "number" },
+  { field: "paid", label: "Paid", inputType: "number" },
+  { field: "paymentStatus", label: "Payment status" },
+  { field: "paymentStatusDate", label: "Payment status date", inputType: "date" },
+  { field: "serviceDate", label: "Service date", inputType: "date" },
+  { field: "groupName", label: "Group name" },
+  { field: "groupId", label: "Group ID" },
+  { field: "providerName", label: "Provider name" },
+  { field: "providerId", label: "Provider ID" },
+  { field: "placeOfService", label: "Place of service" },
+  { field: "planName", label: "Plan name" },
+  { field: "planId", label: "Plan ID" },
+];
 
 function formatOptionLabel(primary: string, secondary?: string): string {
   if (!secondary || secondary === primary) {
@@ -73,6 +110,9 @@ function ReviewPage() {
   const [issueFilter, setIssueFilter] = useState("all");
   const [issueSearch, setIssueSearch] = useState("");
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
+  const [activeTab, setActiveTab] = useState("groups");
+  const [editClaimId, setEditClaimId] = useState<string | null>(null);
+  const [editForm, setEditForm] = useState<Partial<Record<EditableField, string | number>>>({});
 
   useEffect(() => {
     setSelectedGroupIds([]);
@@ -207,9 +247,9 @@ function ReviewPage() {
     return baseFilteredGroups;
   }, [baseFilteredGroups, groupFilter]);
 
-  const filteredAttentionClaims = useMemo(() => {
+  const filteredClaims = useMemo(() => {
     const searchValue = issueSearch.trim().toLowerCase();
-    let claims = store.attentionClaims;
+    let claims = store.claims;
 
     if (issueFilter === "invalid") {
       claims = claims.filter((claim) => !claim.isValid);
@@ -235,7 +275,59 @@ function ReviewPage() {
         .filter(Boolean)
         .some((field) => field.toLowerCase().includes(searchValue));
     });
-  }, [issueFilter, issueSearch, store.attentionClaims]);
+  }, [issueFilter, issueSearch, store.claims]);
+
+  const currentEditClaim = useMemo(
+    () => store.claims.find((claim) => claim.id === editClaimId) ?? null,
+    [editClaimId, store.claims]
+  );
+
+  const openEditModal = (claim: ClaimRow) => {
+    setEditClaimId(claim.id);
+    setEditForm({
+      claimStatus: claim.claimStatus,
+      claimType: claim.claimType,
+      procedureCode: claim.procedureCode,
+      billed: claim.billed,
+      allowed: claim.allowed,
+      paid: claim.paid,
+      paymentStatus: claim.paymentStatus,
+      paymentStatusDate: claim.paymentStatusDate,
+      serviceDate: claim.serviceDate,
+      groupName: claim.groupName,
+      groupId: claim.groupId,
+      providerName: claim.providerName,
+      providerId: claim.providerId,
+      placeOfService: claim.placeOfService,
+      planName: claim.planName,
+      planId: claim.planId,
+    });
+  };
+
+  const closeEditModal = () => {
+    setEditClaimId(null);
+    setEditForm({});
+  };
+
+  const handleEditChange = (field: EditableField, value: string | number) => {
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const saveEditModal = () => {
+    if (!currentEditClaim) {
+      return;
+    }
+    for (const [field, value] of Object.entries(editForm)) {
+      store.updateClaimField(currentEditClaim.id, field as EditableField, value);
+    }
+    closeEditModal();
+  };
+
+  const goToClaimsForGroup = useCallback((group: PricingGroup) => {
+    setIssueFilter("all");
+    setIssueSearch(group.customerId || group.customerName || "");
+    setActiveTab("edit-claims");
+  }, []);
 
   if (!store.isAuthenticated) {
     return (
@@ -269,6 +361,44 @@ function ReviewPage() {
 
       return [
         {
+          headerName: "Actions",
+          minWidth: 170,
+          pinned: "left",
+          cellRenderer: (params: { data?: PricingGroup }) => {
+            const group = params.data;
+            if (!group) {
+              return null;
+            }
+            return (
+              <Group gap="xs">
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  onClick={() => goToClaimsForGroup(group)}
+                >
+                  Edit claims
+                </Button>
+                <Button
+                  size="xs"
+                  variant="light"
+                  disabled={!group.isEligible}
+                  onClick={() => store.setGroupApproval(group.id, true)}
+                >
+                  Approve
+                </Button>
+                <Button
+                  size="xs"
+                  variant="subtle"
+                  disabled={!group.isEligible}
+                  onClick={() => store.setGroupApproval(group.id, false)}
+                >
+                  Unapprove
+                </Button>
+              </Group>
+            );
+          },
+        },
+        {
           headerName: "Approve",
           field: "approved",
           width: 110,
@@ -278,7 +408,6 @@ function ReviewPage() {
         },
         {
           headerName: "Status",
-          field: "status",
           minWidth: 160,
           editable: false,
           cellRenderer: (params: { data?: PricingGroup }) => {
@@ -289,7 +418,7 @@ function ReviewPage() {
 
             if (!group.isEligible) {
               if (group.eligibleClaimCount === 0) {
-                return <Badge color="red" variant="light">No eligible claims</Badge>;
+                return <Badge color="red" variant="light">Non eligible claim</Badge>;
               }
               if (group.invalidClaimCount > 0) {
                 return <Badge color="orange" variant="light">Invalid data</Badge>;
@@ -349,7 +478,7 @@ function ReviewPage() {
         },
       ];
     },
-    [store.groupingUsesPlan]
+    [store, store.groupingUsesPlan, goToClaimsForGroup]
   );
 
   const groupRowClassRules = useMemo<RowClassRules<PricingGroup>>(
@@ -363,8 +492,29 @@ function ReviewPage() {
   const claimColumnDefs = useMemo<(ColDef<ClaimRow> | ColGroupDef<ClaimRow>)[]>(
     () => [
       {
+        headerName: "Actions",
+        field: "id",
+        minWidth: 140,
+        editable: false,
+        pinned: "left",
+        cellRenderer: (params: { data?: ClaimRow }) => {
+          if (!params.data) {
+            return null;
+          }
+          return (
+            <Group gap="xs">
+              <Button size="xs" variant="light" onClick={() => openEditModal(params.data!)}>
+                Edit
+              </Button>
+              <Button size="xs" color="red" variant="light" onClick={() => store.removeClaim(params.data!.id)}>
+                Remove
+              </Button>
+            </Group>
+          );
+        },
+      },
+      {
         headerName: "Issue",
-        field: "issue",
         minWidth: 160,
         editable: false,
         cellRenderer: (params: { data?: ClaimRow }) => {
@@ -474,22 +624,6 @@ function ReviewPage() {
           { headerName: "Provider ID", field: "providerId", minWidth: 140 },
         ],
       },
-      {
-        headerName: "Actions",
-        field: "id",
-        minWidth: 140,
-        editable: false,
-        cellRenderer: (params: { data?: ClaimRow }) => {
-          if (!params.data) {
-            return null;
-          }
-          return (
-            <Button size="xs" color="red" variant="light" onClick={() => store.removeClaim(params.data!.id)}>
-              Remove
-            </Button>
-          );
-        },
-      },
     ],
     [store]
   );
@@ -537,7 +671,7 @@ function ReviewPage() {
             <StatBadge label="Eligible claims" value={store.eligibleCount} color="teal" />
             <StatBadge label="Denied claims" value={store.deniedCount} color="yellow" />
             <StatBadge label="Needs attention" value={store.attentionCount} color="orange" />
-            <StatBadge label="Approved groups" value={store.approvedGroupCount} color="green" />
+            <StatBadge label="Approved group claims" value={store.approvedGroupCount} color="green" />
           </Group>
         </Group>
         <Group mt="md">
@@ -554,10 +688,10 @@ function ReviewPage() {
       </Card>
 
       {/* Tabs separate aggregated review from claim-level issues. */}
-      <Tabs defaultValue="groups">
+      <Tabs value={activeTab} onChange={(value) => value && setActiveTab(value)}>
         <Tabs.List>
           <Tabs.Tab value="groups">Pricing groups</Tabs.Tab>
-          <Tabs.Tab value="issues">Claims needing attention</Tabs.Tab>
+          <Tabs.Tab value="edit-claims">Edit Claims</Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="groups" pt="md">
@@ -742,14 +876,14 @@ function ReviewPage() {
           </div>
         </Tabs.Panel>
 
-        <Tabs.Panel value="issues" pt="md">
+        <Tabs.Panel value="edit-claims" pt="md">
           {/* Issue filters and counts stay in a focused card. */}
           <Card shadow="sm" padding="lg" radius="md">
             <Stack gap="md">
               <div>
-                <Title order={3}>Claims needing attention</Title>
+                <Title order={3}>Edit Claims</Title>
                 <Text size="sm" c="dimmed">
-                  Edit invalid data or update denied claims so pricing groups can be approved.
+                  Edit claim data and filter invalid or denied entries when needed.
                 </Text>
               </div>
               <Group justify="space-between" align="center" wrap="wrap">
@@ -758,7 +892,7 @@ function ReviewPage() {
                     value={issueFilter}
                     onChange={setIssueFilter}
                     data={[
-                      { label: `All (${store.attentionCount})`, value: "all" },
+                      { label: `All (${store.claims.length})`, value: "all" },
                       { label: `Invalid (${store.invalidCount})`, value: "invalid" },
                       { label: `Denied (${store.deniedCount})`, value: "denied" },
                     ]}
@@ -781,31 +915,33 @@ function ReviewPage() {
             </Stack>
           </Card>
 
-          {filteredAttentionClaims.length > 0 ? (
-            {/* Fixed-height grid mirrors the groups panel for consistency. */}
-            <div className="ag-theme-quartz h-[520px] w-full">
-              <AgGridReact
-                rowData={filteredAttentionClaims}
-                columnDefs={claimColumnDefs}
-                getRowId={(params) => params.data.id}
-                rowClassRules={issueRowClassRules}
-                onCellValueChanged={onClaimValueChanged}
-                defaultColDef={{
-                  editable: true,
-                  sortable: true,
-                  filter: true,
-                  resizable: true,
-                }}
-              />
-            </div>
+          {filteredClaims.length > 0 ? (
+            <>
+              {/* Fixed-height grid mirrors the groups panel for consistency. */}
+              <div className="ag-theme-quartz h-[520px] w-full">
+                <AgGridReact
+                  rowData={filteredClaims}
+                  columnDefs={claimColumnDefs}
+                  getRowId={(params) => params.data.id}
+                  rowClassRules={issueRowClassRules}
+                  onCellValueChanged={onClaimValueChanged}
+                  defaultColDef={{
+                    editable: true,
+                    sortable: true,
+                    filter: true,
+                    resizable: true,
+                  }}
+                />
+              </div>
+            </>
           ) : (
             <Alert
-              color={store.attentionClaims.length > 0 ? "gray" : "teal"}
-              title={store.attentionClaims.length > 0 ? "No claims match the filters" : "No claims needing attention"}
+              color={store.claims.length > 0 ? "gray" : "teal"}
+              title={store.claims.length > 0 ? "No claims match the filters" : "No claims loaded"}
             >
-              {store.attentionClaims.length > 0
-                ? "Adjust the filters to see invalid or denied claims."
-                : "All claims are valid and not denied. Pricing groups are ready for approval."}
+              {store.claims.length > 0
+                ? "Adjust the filters to see the claims you need."
+                : "Upload a CSV file to load claims for review."}
             </Alert>
           )}
         </Tabs.Panel>
@@ -848,6 +984,44 @@ function ReviewPage() {
           </Alert>
         )}
       </Card>
+
+      <Modal
+        opened={Boolean(editClaimId)}
+        onClose={closeEditModal}
+        title="Edit claim"
+        centered
+        size="lg"
+        overlayProps={{ blur: 2 }}
+      >
+        <Stack gap="sm">
+          {EDITABLE_FIELDS.map((fieldDef) => (
+            <TextInput
+              key={fieldDef.field}
+              label={fieldDef.label}
+              value={editForm[fieldDef.field] ?? ""}
+              onChange={(event) => handleEditChange(fieldDef.field, event.currentTarget.value)}
+              type={fieldDef.inputType === "number" ? "number" : fieldDef.inputType === "date" ? "date" : "text"}
+            />
+          ))}
+          {currentEditClaim && (store.rowIssues[currentEditClaim.id] ?? []).length > 0 && (
+            <Alert color="orange" title="Validation issues">
+              <Stack gap={4}>
+                {(store.rowIssues[currentEditClaim.id] ?? []).map((issue) => (
+                  <Text key={`${issue.rowIndex}-${issue.field}`} size="sm">
+                    {issue.field}: {issue.message}
+                  </Text>
+                ))}
+              </Stack>
+            </Alert>
+          )}
+          <Group justify="flex-end">
+            <Button variant="subtle" onClick={closeEditModal}>
+              Cancel
+            </Button>
+            <Button onClick={saveEditModal}>Save changes</Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Stack>
   );
 }

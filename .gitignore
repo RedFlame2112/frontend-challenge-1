@@ -12,3 +12,15 @@ lib
 
 # misc
 .DS_Store
+
+# data (generated or local-only)
+backend/data/
+data/
+**/data/
+*.csv
+*.tsv
+*.xls
+*.xlsx
+*.parquet
+*.jsonl
+*.ndjson

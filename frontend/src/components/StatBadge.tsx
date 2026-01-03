@@ -1,3 +1,4 @@
+//NOTE: This is just a wrapper around mantine badge it is NOT custom
 import { Badge } from "@mantine/core";
 
 type StatBadgeProps = {

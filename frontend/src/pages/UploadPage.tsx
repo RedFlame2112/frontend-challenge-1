@@ -117,8 +117,7 @@ function UploadPage() {
             <StatBadge label="Total claims" value={store.claims.length} color="blue" />
             <StatBadge label="Eligible claims" value={store.eligibleCount} color="teal" />
             <StatBadge label="Denied claims" value={store.deniedCount} color="yellow" />
-            <StatBadge label="Pricing groups" value={store.groupCount} color="blue" />
-            <StatBadge label="Approved groups" value={store.approvedGroupCount} color="green" />
+            <StatBadge label="Approved group claims" value={store.approvedGroupCount} color="green" />
             <StatBadge
               label="Invalid claims"
               value={store.invalidCount}

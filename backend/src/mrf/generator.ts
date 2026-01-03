@@ -4,6 +4,17 @@ import type { ClaimInput, GeneratedMrf, MrfAllowedAmount, MrfFile, MrfOutOfNetwo
 const DEFAULT_REPORTING_ENTITY_TYPE = "group";
 const DEFAULT_VERSION = "1.0.0";
 
+/**
+ * Represents a bucket of aggregated billing data for a specific provider and service.
+ *
+ * @property billingClass - The billing classification, either "professional" or "institutional".
+ * @property serviceCode - (Optional) The code identifying the billed service.
+ * @property providerId - The unique identifier for the provider.
+ * @property providerNpi - The National Provider Identifier (NPI) number for the provider.
+ * @property sumAllowed - The total allowed amount for all claims in this bucket.
+ * @property sumBilled - The total billed amount for all claims in this bucket.
+ * @property count - The number of claims aggregated in this bucket.
+ */
 type AggregationBucket = {
   billingClass: "professional" | "institutional";
   serviceCode?: string;
@@ -28,6 +39,12 @@ class MrfBuilder {
     };
   }
 
+  /**
+   * Adds an array of out-of-network items to the current file.
+   *
+   * @param items - An array of `MrfOutOfNetwork` objects to be added to the `out_of_network` list.
+   * @returns The current instance for method chaining.
+   */
   addOutOfNetwork(items: MrfOutOfNetwork[]): this {
     this.file.out_of_network.push(...items);
     return this;
@@ -38,6 +55,16 @@ class MrfBuilder {
   }
 }
 
+/**
+ * Groups an array of claims by their procedure code.
+ *
+ * Iterates through the provided claims and organizes them into a map,
+ * where each key is a procedure code and the value is an array of claims
+ * that share that procedure code. Claims without a procedure code are skipped.
+ *
+ * @param claims - An array of `ClaimInput` objects to be grouped.
+ * @returns A `Map` where each key is a procedure code (string) and the value is an array of `ClaimInput` objects with that procedure code.
+ */
 function groupClaimsByProcedure(claims: ClaimInput[]): Map<string, ClaimInput[]> {
   const map = new Map<string, ClaimInput[]>();
   for (const claim of claims) {
@@ -51,23 +78,42 @@ function groupClaimsByProcedure(claims: ClaimInput[]): Map<string, ClaimInput[]>
   return map;
 }
 
+/**
+ * Aggregates claim data to compute average allowed and billed amounts per provider, billing class, and service code.
+ *
+ * @param claims - An array of `ClaimInput` objects representing individual claims to be aggregated.
+ * @returns An array of `MrfAllowedAmount` objects, each representing the aggregated allowed and billed amounts
+ *          for a unique combination of provider, billing class, and (optionally) service code.
+ *
+ * @remarks
+ * - Claims without a valid `providerId` are skipped.
+ * - The aggregation groups claims by provider ID, billing class (derived from claim type), and service code
+ *   (for professional billing class, derived from place of service).
+ * - For each group, the function calculates the average allowed and billed amounts, rounding to currency precision.
+ * - The resulting structure is suitable for use in MRF (Machine Readable File) generation.
+ */
 function buildAllowedAmounts(claims: ClaimInput[]): MrfAllowedAmount[] {
   // Aggregate allowed/billed averages by provider, billing class, and service code.
   const buckets = new Map<string, AggregationBucket>();
 
   for (const claim of claims) {
+    // Skip claims without a providerId.
     if (!claim.providerId) {
       continue;
     }
 
+    // Parse provider NPI and skip if invalid.
     const providerNpi = Number.parseInt(claim.providerId, 10);
     if (!Number.isFinite(providerNpi)) {
       continue;
     }
 
+    // Determine billing class and service code (if professional).
     const billingClass = getBillingClass(claim.claimType);
     const serviceCode = billingClass === "professional" ? getServiceCode(claim.placeOfService) : undefined;
+    // Create a unique key for the aggregation bucket.
     const key = [claim.providerId, billingClass, serviceCode ?? "none"].join("|");
+    // Retrieve or initialize the aggregation bucket.
     const bucket = buckets.get(key) ?? {
       billingClass,
       serviceCode,
@@ -78,6 +124,7 @@ function buildAllowedAmounts(claims: ClaimInput[]): MrfAllowedAmount[] {
       count: 0,
     };
 
+    // Accumulate allowed and billed amounts, and increment count.
     bucket.sumAllowed += Number(claim.allowed) || 0;
     bucket.sumBilled += Number(claim.billed) || 0;
     bucket.count += 1;
@@ -87,10 +134,12 @@ function buildAllowedAmounts(claims: ClaimInput[]): MrfAllowedAmount[] {
   const allowedAmounts: MrfAllowedAmount[] = [];
 
   for (const bucket of buckets.values()) {
+    // Calculate average allowed and billed amounts, rounded to currency precision.
     const averageAllowed = roundCurrency(bucket.sumAllowed / bucket.count);
     const averageBilled = roundCurrency(bucket.sumBilled / bucket.count);
     const npi = [bucket.providerNpi];
 
+    // Build the MrfAllowedAmount entry.
     const entry: MrfAllowedAmount = {
       tin: {
         type: "npi",
@@ -110,6 +159,7 @@ function buildAllowedAmounts(claims: ClaimInput[]): MrfAllowedAmount[] {
       ],
     };
 
+    // Add service_code if billing class is professional.
     if (bucket.billingClass === "professional" && bucket.serviceCode) {
       entry.service_code = [bucket.serviceCode];
     }
